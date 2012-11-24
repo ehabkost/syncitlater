@@ -6,6 +6,10 @@ class SyncMember(object):
 	def __init__(self, state):
 		self.state = state
 
+	def warn(self, message):
+		"""Log a warning about a sync operation"""
+		self.state.setdefault('warnings', []).append(message)
+
 	def get_changes(self):
 		"""Return changes since the last synchronization"""
 		raise NotImplementedError()
@@ -58,6 +62,9 @@ class PocketMember(SyncMember):
 		self.api = api
 		super(PocketMember, self).__init__(state)
 
+	def cache_item_id(self, url, item_id):
+		self.state.setdefault('url_item_ids', {})[url] = item_id
+
 	def get_changes(self):
 		states = {'0':'unread', '1':'archived'}
 		args = dict(detailType='simple')
@@ -67,13 +74,42 @@ class PocketMember(SyncMember):
 			args['since'] = str(last_update)
 		items = self.api.api_get(**args)
 		for i in items['list']:
-			c = dict(url=i['resolved_url'])
+			url = i['resolved_url']
+			c = dict(url=url)
 			state = states.get(str(i['status']))
 			if state is None:
 				continue
 			c['state'] = state
 			updated = int(i['time_updated'])
+			self.cache_item_id(url, i['item_id'])
+			yield c
 			if updated > last_update:
 				last_update = updated
-			yield c
 		self.state['last_update_timestamp'] = last_update
+
+	def find_item_id(self, url):
+		"""Find the item ID for a specific URL
+
+		Necessary to allow an item to be archived.
+		"""
+		return self.state.get('url_item_ids', {}).get(url)
+
+	def commit_changes(self, changes):
+		actions = []
+		for c in changes:
+			if c['state'] == 'unread':
+				item_id = self.find_item_id(c['url'])
+				if item_id is None:				
+					a = dict(action='add', url=c['url'])
+				else:
+					a = dict(action='add', item_id=item_id)
+			elif c['state'] == 'archived':
+				item_id = self.find_item_id(c['url'])
+				if item_id is None:
+					self.warn('Unknown item_id for URL: %r' % (c['url']))
+					continue
+				a = dict(action='archive', item_id=item_id)
+			else:
+				continue
+			actions.append(a)
+		self.api.send_actions(actions)

@@ -93,13 +93,19 @@ class PocketApi:
     def is_authenticated(self):
         return self.state.has_key('username') and self.state.has_key('access_token')
 
-    def api_get(self, **kwargs):
-        """Generic 'get' API method"""
+    def authenticated_post(self, p, **kwargs):
         assert self.is_authenticated()
-        return self.make_post('get',
+        return self.make_post(p,
                               consumer_key=self._consumer_key,
                               access_token=self.state['access_token'],
                               **kwargs)
+
+    def api_get(self, **kwargs):
+        """Generic 'get' API method"""
+        return self.authenticated_post('get', **kwargs)
+
+    def send_actions(self, actions):
+        return self.authenticated_post('send', actions=json.dumps(actions))
 
     def test_auth(self):
         """Test authentication
