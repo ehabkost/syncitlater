@@ -113,3 +113,11 @@ class PocketMember(SyncMember):
 				continue
 			actions.append(a)
 		self.api.send_actions(actions)
+
+class SyncEngine:
+	def __init__(self, state, members):
+		self.state = state
+		self.members = members
+
+	def synchronize(self):
+		pass
