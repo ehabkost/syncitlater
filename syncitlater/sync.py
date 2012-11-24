@@ -52,3 +52,28 @@ class InstapaperMember(SyncMember):
 			folder = folder_map[c['state']]
 			r = self.api.add_bookmark(url=c['url'], folder_id=folder)
 			self._add_known_bookmark(r, folder)
+
+class PocketMember(SyncMember):
+	def __init__(self, api, state):
+		self.api = api
+		super(PocketMember, self).__init__(state)
+
+	def get_changes(self):
+		states = {'0':'unread', '1':'archived'}
+		args = dict(detailType='simple')
+		last_update = 0
+		if self.state.has_key('last_update_timestamp'):
+			last_update = int(self.state['last_update_timestamp'])
+			args['since'] = str(last_update)
+		items = self.api.api_get(**args)
+		for i in items['list']:
+			c = dict(url=i['resolved_url'])
+			state = states.get(str(i['status']))
+			if state is None:
+				continue
+			c['state'] = state
+			updated = int(i['time_updated'])
+			if updated > last_update:
+				last_update = updated
+			yield c
+		self.state['last_update_timestamp'] = last_update
