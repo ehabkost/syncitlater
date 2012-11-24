@@ -67,3 +67,55 @@ class PocketSyncTest(unittest.TestCase):
 			dict(url='http://1.example.com/', state='archived'),
 			dict(url='http://2.example.com/', state='unread'),
 		])
+
+	def testFalseConflict(self):
+		# simple test for a conflict where both sides agree
+		self.m1.fake_changes = [
+			dict(url='http://1.example.com/', state='archived'),
+			dict(url='http://2.example.com/', state='unread'),
+			dict(url='http://0.example.com/', state='unread'),
+			dict(url='http://100.example.com/', state='archived'),
+		]
+		self.m2.fake_changes = [
+			dict(url='http://3.example.com/', state='archived'),
+			dict(url='http://4.example.com/', state='unread'),
+			dict(url='http://0.example.com/', state='unread'),
+			dict(url='http://100.example.com/', state='archived'),
+		]
+		self.engine.synchronize()
+		self.assertEquals(self.m1.committed_changes, [
+			dict(url='http://3.example.com/', state='archived'),
+			dict(url='http://4.example.com/', state='unread'),
+		])
+		self.assertEquals(self.m2.committed_changes, [
+			dict(url='http://1.example.com/', state='archived'),
+			dict(url='http://2.example.com/', state='unread'),
+		])
+
+	def testRealConflict(self):
+		# test for conflicts where sides disagree
+		# we should give preference to the 'unread' state
+		self.m1.fake_changes = [
+			dict(url='http://1.example.com/', state='archived'),
+			dict(url='http://2.example.com/', state='unread'),
+			dict(url='http://0.example.com/', state='unread'),
+			dict(url='http://100.example.com/', state='archived'),
+			dict(url='http://1000.example.com/', state='archived'),
+		]
+		self.m2.fake_changes = [
+			dict(url='http://3.example.com/', state='archived'),
+			dict(url='http://4.example.com/', state='unread'),
+			dict(url='http://0.example.com/', state='unread'),
+			dict(url='http://100.example.com/', state='archived'),
+			dict(url='http://1000.example.com/', state='unread'),
+		]
+		self.engine.synchronize()
+		self.assertEquals(self.m1.committed_changes, [
+			dict(url='http://3.example.com/', state='archived'),
+			dict(url='http://4.example.com/', state='unread'),
+			dict(url='http://1000.example.com/', state='unread'),
+		])
+		self.assertEquals(self.m2.committed_changes, [
+			dict(url='http://1.example.com/', state='archived'),
+			dict(url='http://2.example.com/', state='unread'),
+		])

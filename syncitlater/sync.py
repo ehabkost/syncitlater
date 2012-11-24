@@ -1,4 +1,5 @@
 
+import copy
 import instapaper, pocket
 
 
@@ -119,14 +120,129 @@ class SyncEngine:
 		self.state = state
 		self.members = members
 
-	def synchronize(self):
-		changesets = []
-		for m in self.members:
-			changesets.append(list(m.get_changes()))
+	def solve_conflict(self, changes):
+		urls = set()
+		states = set()
+		for mid,c in changes:
+			urls.add(c['url'])
+			states.add(c['state'])
+			if set(c.keys()) - set(['url', 'state']):
+				# I don't know how to solve conflicts for anything except the 'state' field
+				return None
+		if len(urls) > 1:
+			# to solve conflicts, the URLs should really match
+			return None
 
-		changesets = zip(self.members, changesets)
-		for sourceid,(sm,changes) in enumerate(changesets):
-			for destid,dm in enumerate(self.members):
-				if sourceid == destid:
+		url, = urls
+		if len(states) == 1:
+			state, = states
+			# this one is obvious: only one state
+			return dict(url=url, state=state)
+
+		# archived items can be unarchived, it won't hurt too much
+		states.remove('archived')
+		if len(states) == 1:
+			state, = states
+			return dict(url=url, state=state)
+
+		# anything else, I don't know how to solve
+		return None
+
+
+	@staticmethod
+	def different_versions(changes):
+		r = []
+		for c in changes:
+			found = any(v==c for v in r)
+			if not found:
+				r.append(c)
+		return r
+
+	def member_ids(self):
+		"""Return list of member IDs (indexes on self.members)"""
+		return range(len(self.members))
+
+	def warn(self, msg):
+		self.state.setdefault('warnings', []).append(msg)
+
+	def check_for_conflicts(self, url, changes):
+		"""Check for conflicts
+
+		If returning None, the changes will be kept as-is.
+		If returning a list, the changes will be skipped, and replaced
+		by the ones in the list.
+		"""
+		if len(changes) <= 1:
+			return # no conflicts. good!
+
+		def change_skip_member(c, mid):
+			"""Make a change be skipped on a specific member"""
+			c.setdefault('engine_hints', {}).setdefault('skip_members', []).append(mid)
+	
+		def skip_member(mid):
+			# ask for a member to be skipped for all changes
+			for _,c in changes:
+				c.setdefault('engine_hints', {}).setdefault('skip_members', []).append(mid)
+
+		different_versions = self.different_versions([c for mid,c in changes])
+
+		if len(different_versions) == 1:
+			# everybody agrees. good!
+			# make only one change object, and make it skip the members that
+			# already agree
+			c = different_versions[0]
+			for mid,_ in changes:
+				change_skip_member(c, mid)
+			return [c]
+		else:
+			conflict_solution = copy.deepcopy(self.solve_conflict(changes))
+			if conflict_solution is None:
+				self.warn("I don't know how to solve the conflict for URL: %s" % (url))
+				return [] # won't send anything anywhere
+			for mid,c in changes:
+				if c == conflict_solution:
+					# this member already agrees with the conflict solution, skip it
+					change_skip_member(conflict_solution, mid)
+			return [conflict_solution]
+
+	def calculate_sync(self):
+		changesets = []
+		mids = range(len(self.members))
+		changesets = [list(m.get_changes()) for m in self.members]
+		extra_changes = []
+
+		# look for conflicts
+		per_url = {}
+		for mid,changes in enumerate(changesets):
+			for c in changes:
+				per_url.setdefault(c['url'], []).append( (mid, c) )
+		for url,changes in per_url.items():
+			r = self.check_for_conflicts(url, changes)
+			if r is not None: # changes will be replaced
+				for mid,c in changes:
+					c.clear() # remove item by clearing it
+				extra_changes.extend(r)
+
+		resulting_changes = dict((mid,[]) for mid in mids)
+		for sourceid,changes in list(enumerate(changesets))+[(-1, extra_changes)]:
+			for c in changes:
+				if len(c) == 0:
 					continue
-				dm.commit_changes(changes)
+				for destid,dm in enumerate(self.members):
+					if sourceid == destid:
+						continue
+					cc = copy.deepcopy(c)
+					engine_hints = cc.get('engine_hints', {})
+					if cc.has_key('engine_hints'):
+						del cc['engine_hints']
+					if destid in engine_hints.get('skip_members', []):
+						continue # skip this change
+					resulting_changes[destid].append(cc)
+
+		for mid,member in enumerate(self.members):
+			yield member, resulting_changes[mid]
+
+
+	def synchronize(self):
+		for member, changes in self.calculate_sync():
+			member.commit_changes(changes)
