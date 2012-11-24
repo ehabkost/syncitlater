@@ -2,13 +2,13 @@ import os
 import urllib2, urllib, urlparse
 import json
 
-API_BASE = 'https://getpocket.com/v3/'
-BROWSER_AUTH_URL = 'https://getpocket.com/auth/authorize'
-
 import logging
 logger = logging.getLogger(__name__)
 info = logger.info
 dbg = logger.debug
+
+API_BASE = 'https://getpocket.com/v3/'
+BROWSER_AUTH_URL = 'https://getpocket.com/auth/authorize'
 
 def api_url(p, *args, **kwargs):
     u = urlparse.urljoin(API_BASE, p)
@@ -17,75 +17,110 @@ def api_url(p, *args, **kwargs):
     return u
 
 
+class PleaseReauthenticate(Exception):
+    pass
+
 class PocketApi:
-        def __init__(self, key, state=None):
-            """Constructor
+    def __init__(self, key, state=None):
+        """Constructor
 
-            The state object is a dictionary-like object, that will be
-            changed by the PocketApi in-place.
-            """
-            self._consumer_key = key
-            if state is None:
-                state = {}
-            self.state = state
+        The state object is a dictionary-like object, that will be
+        changed by the PocketApi in-place.
+        """
+        self._consumer_key = key
+        if state is None:
+            state = {}
+        self.state = state
 
-        def make_post(self, p, **kwargs):
-            u = api_url(p)
-            d = urllib.urlencode(kwargs)
-            dbg('making post request: url: %r, data: %r', u, d)
-            f = urllib2.urlopen(u, d)
-            return dict(urlparse.parse_qsl(f.read()))
+    def make_post(self, p, **kwargs):
+        u = api_url(p)
+        d = json.dumps(kwargs)
+        dbg('making post request: url: %r, data: %r', u, d)
+        r = urllib2.Request(u)
+        r.add_data(d)
+        r.add_header('Content-Type', 'application/json; charset=UTF8')
+        r.add_header('X-Accept', 'application/json')
+        dbg('urllib2 request: %r, headers: %r', r, r.header_items())
+        try:
+            f = urllib2.urlopen(r)
+            s = f.read()
+        except urllib2.HTTPError,e:
+            if e.code == 401:
+                raise PleaseReauthenticate()
+            else:
+                raise
+        dbg('returned data: %r', s)
+        return json.loads(s)
 
-        def _get_request_token(self, redir_uri, state=None):
-            args = dict(consumer_key=self._consumer_key, redirect_uri=redir_uri)
-            if state is not None:
-                args['state'] = state
-            r = self.make_post('oauth/request', **args)
-            return r['code']
+    def _get_request_token(self, redir_uri, state=None):
+        args = dict(consumer_key=self._consumer_key, redirect_uri=redir_uri)
+        if state is not None:
+            args['state'] = state
+        r = self.make_post('oauth/request', **args)
+        return r['code']
 
-        def reset_auth(self):
-            """Reset all authentication data on state"""
-            for k in ('request_token','access_token','username'):
-                if self.state.has_key(k):
-                    del self.state[k]
+    def del_state(self, key):
+        if self.state.has_key(key):
+            del self.state[key]
 
-        def start_auth(self, redir_uri, state=None):
-            """Start authentication process
+    def reset_auth(self):
+        """Reset all authentication data on state"""
+        self.del_state('request_token')
+        self.del_state('access_token')
+        self.del_state('username')
 
-            Returns URL to be opened on browser
-            """
-            if not self.state.has_key('request_token'):
-                self.state['request_token'] = self._get_request_token(redir_uri, state)
-            dbg('request token: %r', self.state['request_token'])
-            args = dict(request_token=self.state['request_token'], redirect_uri=redir_uri)
-            u = BROWSER_AUTH_URL + '?' + urllib.urlencode(args)
-            return u
+    def start_auth(self, redir_uri, state=None):
+        """Start authentication process
 
-        def auth_finished(self):
-            """Call this after the redir_uri was successfully opened"""
-            assert self.state.has_key('request_token')
-            r = self.make_post('oauth/authorize',
-                               consumer_key=self._consumer_key,
-                               code=self.state['request_token'])
-            self.state['access_token'] = r['access_token']
-            self.state['username'] = r['username']
+        Returns URL to be opened on browser
+        """
+        if not self.state.has_key('request_token'):
+            self.state['request_token'] = self._get_request_token(redir_uri, state)
+        dbg('request token: %r', self.state['request_token'])
+        args = dict(request_token=self.state['request_token'], redirect_uri=redir_uri)
+        u = BROWSER_AUTH_URL + '?' + urllib.urlencode(args)
+        return u
 
-        def is_authenticated(self):
-            return self.state.has_key('username') and self.state.has_key('access_token')
+    def auth_finished(self):
+        """Call this after the redir_uri was successfully opened"""
+        assert self.state.has_key('request_token')
+        r = self.make_post('oauth/authorize',
+                           consumer_key=self._consumer_key,
+                           code=self.state['request_token'])
+        self.state['access_token'] = r['access_token']
+        self.state['username'] = r['username']
 
-        def api_get(self, **kwargs):
-            """Generic 'get' API method"""
-            assert self.is_authenticated()
-            return self.make_post('get',
-                                  consumer_key=self._consumer_key,
-                                  access_token=self.state['access_token'],
-                                  **kwargs)
+    def is_authenticated(self):
+        return self.state.has_key('username') and self.state.has_key('access_token')
 
+    def api_get(self, **kwargs):
+        """Generic 'get' API method"""
+        assert self.is_authenticated()
+        return self.make_post('get',
+                              consumer_key=self._consumer_key,
+                              access_token=self.state['access_token'],
+                              **kwargs)
+
+    def test_auth(self):
+        """Test authentication
+
+        Returns True if it seems to be working.
+        Returns False if it's obviously not working (and needs re-authentication).
+        Raises an exception on unexpected errors (probably meaning that it needs re-authentication)
+        """
+        if not self.is_authenticated():
+            return False
+        try:
+            self.api_get(count=0)
+        except PleaseReauthenticate:
+            return False
+        return True
 
 # below is just test code:
 
 def run_main(a):
-    if not a.is_authenticated():
+    ok = a.test_auth()
+    if not ok:
         a.reset_auth()
         url = a.start_auth('http://raisama.net/pocket_test')
         print 'Opening URL: %s' % (url)

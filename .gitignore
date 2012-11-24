@@ -1,3 +1,5 @@
 pocketstate.json
+instapaperstate.json
 *.pyc
 settings.py
+venv
