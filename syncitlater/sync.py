@@ -37,11 +37,11 @@ class InstapaperMember(SyncMember):
 		entry.update(url=b['url'], bookmark_id=b['bookmark_id'], hash=b['hash'], folder_id=folder_id)
 
 	def get_changes(self):
-		unread = self.api.list_bookmarks(have=self._have('unread'), folder_id='unread')
+		unread = self.api.list_bookmarks(have=self._have('unread'), limit='500', folder_id='unread')
 		for b in unread:
 			yield dict(url=b['url'], state='unread')
 			self._add_known_bookmark(b, 'unread')
-		archived = self.api.list_bookmarks(have=self._have('archive'), folder_id='archive')
+		archived = self.api.list_bookmarks(have=self._have('archive'), limit='500', folder_id='archive')
 		for b in archived:
 			yield dict(url=b['url'], state='archived')
 			self._add_known_bookmark(b, 'archive')
