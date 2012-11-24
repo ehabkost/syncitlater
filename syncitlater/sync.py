@@ -120,4 +120,13 @@ class SyncEngine:
 		self.members = members
 
 	def synchronize(self):
-		pass
+		changesets = []
+		for m in self.members:
+			changesets.append(list(m.get_changes()))
+
+		changesets = zip(self.members, changesets)
+		for sourceid,(sm,changes) in enumerate(changesets):
+			for destid,dm in enumerate(self.members):
+				if sourceid == destid:
+					continue
+				dm.commit_changes(changes)

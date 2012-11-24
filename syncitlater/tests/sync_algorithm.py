@@ -24,3 +24,27 @@ class PocketSyncTest(unittest.TestCase):
 		self.engine.synchronize()
 		self.assertEquals(self.m1.committed_changes, [])
 		self.assertEquals(self.m2.committed_changes, [])
+
+	def testChangesOneSide(self):
+		self.m1.fake_changes = [
+			dict(url='http://1.example.com/', state='archived'),
+			dict(url='http://2.example.com/', state='unread'),
+		]
+		self.engine.synchronize()
+		self.assertEquals(self.m1.committed_changes, [])
+		self.assertEquals(self.m2.committed_changes, [
+			dict(url='http://1.example.com/', state='archived'),
+			dict(url='http://2.example.com/', state='unread'),
+		])
+
+	def testChangesOtherSide(self):
+		self.m2.fake_changes = [
+			dict(url='http://1.example.com/', state='archived'),
+			dict(url='http://2.example.com/', state='unread'),
+		]
+		self.engine.synchronize()
+		self.assertEquals(self.m1.committed_changes, [
+			dict(url='http://1.example.com/', state='archived'),
+			dict(url='http://2.example.com/', state='unread'),
+		])
+		self.assertEquals(self.m2.committed_changes, [])
