@@ -88,6 +88,9 @@ class InstapaperApi:
     def list_bookmarks(self, **kwargs):
         return self.make_request('bookmarks/list', **kwargs)
 
+    def add_bookmark(self, url, **kwargs):
+        return self.make_request('bookmarks/add', url=url, **kwargs)
+
 
 # below is just test code:
 
