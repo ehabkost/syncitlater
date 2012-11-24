@@ -85,8 +85,8 @@ class InstapaperApi:
         else:
             return False
 
-    def list_bookmarks(self):
-        return self.make_request('bookmarks/list')
+    def list_bookmarks(self, **kwargs):
+        return self.make_request('bookmarks/list', **kwargs)
 
 
 # below is just test code:
