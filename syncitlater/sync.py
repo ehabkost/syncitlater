@@ -81,7 +81,10 @@ class PocketMember(SyncMember):
 		#dbg('items returned: %r', items)
 		for i in items['list'].values():
 			dbg('item: %r', i)
-			url = i['resolved_url']
+			if i.has_key('resolved_url'):
+				url = i['resolved_url']
+			else:
+				url = i['given_url']
 			c = dict(url=url)
 			state = states.get(str(i['status']))
 			if state is None:

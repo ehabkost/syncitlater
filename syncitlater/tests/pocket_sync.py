@@ -21,11 +21,11 @@ class PocketSyncTest(unittest.TestCase):
 
 	def testNoPreviousSync(self):
 		self.api.fake_data = {'list':{
-			'1':   dict(status='0', item_id='1', resolved_url='http://1.example.com/', time_updated='12345'),
+			'1':   dict(status='0', item_id='1', given_url='http://1.example.com/', time_updated='12345'),
 			'2':   dict(status='1', item_id='2', resolved_url='http://2.example.com/', time_updated='12336'),
 			'2_5': dict(status='2', item_id='2_5', resolved_url='http://2_5.example.com/', time_updated='11347'),
-			'3':   dict(status='0', item_id='3', resolved_url='http://3.example.com/', time_updated='12349'),
-			'4':   dict(status='1', item_id='4', resolved_url='http://4.example.com/', time_updated='12348'),
+			'3':   dict(status='0', item_id='3', given_url='http://3.example.com/', time_updated='12349'),
+			'4':   dict(status='1', item_id='4', given_url='http://jmp.example.com/foobar', resolved_url='http://4.example.com/', time_updated='12348'),
 		}}
 		changes = list(self.member.get_changes())
 		self.assertEquals(sorted(changes), sorted([
