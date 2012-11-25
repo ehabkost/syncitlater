@@ -2,6 +2,10 @@
 import copy
 import instapaper, pocket
 
+import logging
+logger = logging.getLogger(__name__)
+info = logger.info
+dbg = logger.debug
 
 class SyncMember(object):
 	def __init__(self, state):
@@ -74,7 +78,9 @@ class PocketMember(SyncMember):
 			last_update = int(self.state['last_update_timestamp'])
 			args['since'] = str(last_update)
 		items = self.api.api_get(**args)
-		for i in items['list']:
+		#dbg('items returned: %r', items)
+		for i in items['list'].values():
+			dbg('item: %r', i)
 			url = i['resolved_url']
 			c = dict(url=url)
 			state = states.get(str(i['status']))
@@ -206,6 +212,11 @@ class SyncEngine:
 			return [conflict_solution]
 
 	def calculate_sync(self):
+		"""Calculate the changes necessary to run a synchronization run
+
+		Generates (member, changes) tuples. The results are used by the
+		synchronize() method to actually commit the changes.
+		"""
 		changesets = []
 		mids = range(len(self.members))
 		changesets = [list(m.get_changes()) for m in self.members]
