@@ -6,6 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 info = logger.info
 dbg = logger.debug
+warn = logger.warn
 
 class SyncMember(object):
 	def __init__(self, state):
@@ -14,6 +15,7 @@ class SyncMember(object):
 	def warn(self, message):
 		"""Log a warning about a sync operation"""
 		self.state.setdefault('warnings', []).append(message)
+		warn(message)
 
 	def get_changes(self):
 		"""Return changes since the last synchronization"""
@@ -48,10 +50,16 @@ class InstapaperMember(SyncMember):
 	def get_changes(self):
 		unread = self.api.list_bookmarks(have=self._have('unread'), limit='500', folder_id='unread')
 		for b in unread:
+			dbg('unread item: %r', b)
+			if b.get('type') != 'bookmark':
+				continue
 			yield dict(url=b['url'], state='unread')
 			self._add_known_bookmark(b, 'unread')
 		archived = self.api.list_bookmarks(have=self._have('archive'), limit='500', folder_id='archive')
 		for b in archived:
+			dbg('archive item: %r', b)
+			if b.get('type') != 'bookmark':
+				continue
 			yield dict(url=b['url'], state='archived')
 			self._add_known_bookmark(b, 'archive')
 
@@ -60,7 +68,11 @@ class InstapaperMember(SyncMember):
 		for c in changes:
 			folder = folder_map[c['state']]
 			r = self.api.add_bookmark(url=c['url'], folder_id=folder)
-			self._add_known_bookmark(r, folder)
+			dbg('add_bookmark return value: %r', r)
+			for b in r:
+				if b.get('type') != 'bookmark':
+					continue
+				self._add_known_bookmark(b, folder)
 
 class PocketMember(SyncMember):
 	def __init__(self, api, state):
@@ -173,6 +185,7 @@ class SyncEngine:
 
 	def warn(self, msg):
 		self.state.setdefault('warnings', []).append(msg)
+		warn(message)
 
 	def check_for_conflicts(self, url, changes):
 		"""Check for conflicts
@@ -256,7 +269,11 @@ class SyncEngine:
 		for mid,member in enumerate(self.members):
 			yield member, resulting_changes[mid]
 
+	def commit_sync(self, sync_result):
+		for member, changes in sync_result:
+			member.commit_changes(changes)
 
 	def synchronize(self):
-		for member, changes in self.calculate_sync():
-			member.commit_changes(changes)
+		r = self.calculate_sync()
+		self.commit_sync(r)
+

@@ -11,7 +11,7 @@ class FakeInstapaperApi:
 		item = dict(url=url)
 		item.update(kwargs)
 		self.fake_added_bookmarks.append(item)
-		return dict(url=url, hash=hash(url), bookmark_id=hash(url))
+		return [dict(type='meta', foo='bar'), dict(type='bookmark', url=url, hash=hash(url), bookmark_id=hash(url))]
 
 class InstapaperSyncTest(unittest.TestCase):
 	def setUp(self):
@@ -47,6 +47,7 @@ class InstapaperSyncTest(unittest.TestCase):
 			dict(bookmark_id=1, hash='one'),
 			dict(bookmark_id=2, hash='two')]
 		self.api.fake_bookmarks = {'unread':[
+			dict(type='meta', foo='bar'),
 			dict(type='bookmark', bookmark_id=3, hash='three', url='http://3.example.com/'),
 			dict(type='bookmark', bookmark_id=4, hash='four', url='http://4.example.com/'),
 		]}

@@ -17,6 +17,12 @@ def api_url(p, *args, **kwargs):
     return u
 
 
+# sample items:
+# {u'hash': u'JhXkmQyM', u'description': u'', u'title': u'Americana Boca Suja: Harden the fuck up', u'url': u'http://americanabocasuja.blogspot.com.br/2009/09/harden-fuck-up.html', u'progress_timestamp': 0, u'bookmark_id': 335256617, u'time': 1352099686, u'progress': 0, u'starred': u'0', u'type': u'bookmark', u'private_source': u''},
+# {u'hash': u'Qmy2utLt', u'description': u'', u'title': u'Fish: the friendly interactive shell | Ars Technica', u'url': u'http://arstechnica.com/information-technology/2005/12/linux-20051218/2/', u'progress_timestamp': 0, u'bookmark_id': 334677730, u'time': 1351873721, u'progress': 0, u'starred': u'0', u'type': u'bookmark', u'private_source': u''},
+# {u'hash': u'lngzG7pK', u'description': u'', u'title': u'Intel declares Clover Trail Atom processor a \u201cno Linux\u201d zone | Ars Technica', u'url': u'http://arstechnica.com/information-technology/2012/09/intel-declares-clover-trail-atom-processor-a-no-linux-zone/', u'progress_timestamp': 0, u'bookmark_id': 323501408, u'time': 1351725307, u'progress': 0, u'starred': u'0', u'type': u'bookmark', u'private_source': u''},
+# {u'hash': u'sfhaOra3', u'description': u'Space', u'title': u"Why We Can't Solve Big Problems | MIT Technology Review", u'url': u'http://www.technologyreview.com/featuredstory/429690/why-we-cant-solve-big-problems/', u'progress_timestamp': 0, u'bookmark_id': 334136479, u'time': 1351705881, u'progress': 0, u'starred': u'0', u'type': u'bookmark', u'private_source': u''}
+
 class InstapaperApi:
     def __init__(self, key, secret, state=None):
         """Constructor
@@ -104,6 +110,7 @@ def run_main(a):
         a.authenticate(username, password)
         assert a.test_auth()
     print repr(a.list_bookmarks())
+    print repr(a.list_bookmarks(folder_id='archive'))
 
 def main(argv):
     import settings
