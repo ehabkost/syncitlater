@@ -3,3 +3,4 @@ instapaperstate.json
 *.pyc
 settings.py
 venv
+simplesync.json
